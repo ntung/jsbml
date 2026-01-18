@@ -22,6 +22,9 @@ package org.sbml.jsbml.util;
 
 import java.util.List;
 import java.util.Properties;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.xml.stream.XMLStreamException;
 
@@ -30,10 +33,8 @@ import org.sbml.jsbml.JSBML;
 import org.sbml.jsbml.SBase;
 import org.sbml.jsbml.xml.XMLNode;
 
-
 /**
  * Contains some useful methods to manipulate 'COBRA SBML'
- *
  *
  * @author Nicolas Rodriguez
  * @since 1.1
@@ -41,38 +42,96 @@ import org.sbml.jsbml.xml.XMLNode;
 public class CobraUtil {
   
   private static final transient Logger logger = Logger.getLogger(CobraUtil.class);
+
+  /**
+   * Known COBRA-style keys used in notes. This list is intentionally conservative;
+   * fields not in this list can still be accepted if they look like all-uppercase
+   * identifiers (e.g., GENE_ASSOCIATION).
+   */
+  private static final Set<String> KNOWN_COBRA_KEYS = new HashSet<String>(Arrays.asList(
+      "FORMULA",
+      "CHARGE",
+      "HEPATONET_1.0_ABBREVIATION",
+      "EHMN_ABBREVIATION",
+      "INCHI",
+      "GENE_ASSOCIATION",
+      "SUBSYSTEM",
+      "EC Number",
+      "Confidence Level",
+      "AUTHORS",
+      "NOTES"
+  ));
+
+  /**
+   * Heuristic to decide whether a given key is likely to be a structured COBRA
+   * property key rather than arbitrary free text.
+   */
+  private static boolean isLikelyCobraKey(String key) {
+    if (key == null) {
+      return false;
+    }
+    key = key.trim();
+    if (key.isEmpty()) {
+      return false;
+    }
+
+    // Explicitly known keys (may contain lowercase, spaces, etc.)
+    if (KNOWN_COBRA_KEYS.contains(key)) {
+      return true;
+    }
+
+    // If the key contains lowercase letters and is not explicitly known,
+    // treat it as free text and ignore it.
+    for (int i = 0; i < key.length(); i++) {
+      if (Character.isLowerCase(key.charAt(i))) {
+        return false;
+      }
+    }
+
+    // Only allow reasonably "identifier-like" keys:
+    // uppercase letters, digits, underscore, dot, and space.
+    for (int i = 0; i < key.length(); i++) {
+      char c = key.charAt(i);
+      if (!(Character.isUpperCase(c) || Character.isDigit(c)
+          || c == '_' || c == '.' || c == ' ')) {
+        return false;
+      }
+    }
+
+    return true;
+  }
   
   /**
    * Parses the notes of the given {@link SBase} element.
    *
-   *<p>The notes are expecting to have some 'p' elements with
+   * <p>The notes are expecting to have some 'p' elements with
    * a content of the form 'KEY: VALUE'. The key will be used for the property
    * name and the value will be the property value. The key is inserted even is the value
    * is an empty String.
    * 
    * <p>Below are examples for a species and a reaction:
    * 
-   *  <pre>
-  &lt;body xmlns="http://www.w3.org/1999/xhtml"&gt;
-    &lt;p&gt;FORMULA: H4N&lt;/p&gt;
-    &lt;p&gt;CHARGE: 1&lt;/p&gt;
-    &lt;p&gt;HEPATONET_1.0_ABBREVIATION: HC00765&lt;/p&gt;
-    &lt;p&gt;EHMN_ABBREVIATION: C01342&lt;/p&gt;
-    &lt;p&gt;INCHI: InChI=1S/H3N/h1H3/p+1&lt;/p&gt;
-  &lt;/body&gt;
-</pre>
-
-<pre>
-  &lt;body xmlns="http://www.w3.org/1999/xhtml"&gt;
-    &lt;p&gt;GENE_ASSOCIATION: 1594.1&lt;/p&gt;
-    &lt;p&gt;SUBSYSTEM: Vitamin D metabolism&lt;/p&gt;
-    &lt;p&gt;EC Number: &lt;/p&gt;
-    &lt;p&gt;Confidence Level: 4&lt;/p&gt;
-    &lt;p&gt;AUTHORS: PMID:14671156,PMID:9333115&lt;/p&gt;
-    &lt;p&gt;NOTES: based on Vitamins, G.F.M. Ball,2004, Blackwell publishing, 1st ed (book) pg.196 IT&lt;/p&gt;
-  &lt;/body&gt;
-</pre>
-
+   * <pre>
+   * &lt;body xmlns="http://www.w3.org/1999/xhtml"&gt;
+   *   &lt;p&gt;FORMULA: H4N&lt;/p&gt;
+   *   &lt;p&gt;CHARGE: 1&lt;/p&gt;
+   *   &lt;p&gt;HEPATONET_1.0_ABBREVIATION: HC00765&lt;/p&gt;
+   *   &lt;p&gt;EHMN_ABBREVIATION: C01342&lt;/p&gt;
+   *   &lt;p&gt;INCHI: InChI=1S/H3N/h1H3/p+1&lt;/p&gt;
+   * &lt;/body&gt;
+   * </pre>
+   *
+   * <pre>
+   * &lt;body xmlns="http://www.w3.org/1999/xhtml"&gt;
+   *   &lt;p&gt;GENE_ASSOCIATION: 1594.1&lt;/p&gt;
+   *   &lt;p&gt;SUBSYSTEM: Vitamin D metabolism&lt;/p&gt;
+   *   &lt;p&gt;EC Number: &lt;/p&gt;
+   *   &lt;p&gt;Confidence Level: 4&lt;/p&gt;
+   *   &lt;p&gt;AUTHORS: PMID:14671156,PMID:9333115&lt;/p&gt;
+   *   &lt;p&gt;NOTES: based on Vitamins, G.F.M. Ball,2004, Blackwell publishing, 1st ed (book) pg.196 IT&lt;/p&gt;
+   * &lt;/body&gt;
+   * </pre>
+   *
    * @param sbase
    * @return a {@link Properties} object that store all the KEY/VALUE pair found in the notes. If the given {@link SBase}
    * has no notes or if the notes are not of the expected format, an empty {@link Properties} object is returned.
@@ -102,27 +161,33 @@ public class CobraUtil {
         parent = body;
       } 
       
-      // Getting the all the p elements (only direct child of 'parent')
+      // Getting all the p elements (only direct children of 'parent')
       List<XMLNode> pNodes = parent.getChildElements("p", null);
       
       for (XMLNode pNode : pNodes) {
         if (pNode.getChildCount() > 0) {
           String content = pNode.getChild(0).getCharacters();
-          String key = "", value = "";
+          if (content == null) {
+            continue;
+          }
 
-          int firstColonIndex = content.indexOf(':');
+          String trimmed = content.trim();
+          int firstColonIndex = trimmed.indexOf(':');
 
           if (firstColonIndex != -1) {
-            key = content.substring(0, firstColonIndex);
-            value = content.substring(firstColonIndex + 1).trim();
+            String key = trimmed.substring(0, firstColonIndex).trim();
+            String value = trimmed.substring(firstColonIndex + 1).trim();
 
-            props.setProperty(key, value);
+            if (isLikelyCobraKey(key)) {
+              props.setProperty(key, value);
+            } else if (logger.isDebugEnabled()) {
+              logger.debug("Ignoring notes entry that does not look like a COBRA key: '" + content + "'");
+            }
           } else if (logger.isDebugEnabled()) {
             logger.debug("The content of one of the 'p' element does not seems to respect the expected pattern (KEY: VALUE), found '" + content + "'");
           }
-        } // else if (logger.isDebugEnabled()) {
-          // logger.debug("The content of one of the 'p' element does not seems to respect the expected pattern (KEY: VALUE), found no children !");
-        //}
+        }
+        // else: no children; ignore
       }
     }
     
@@ -147,10 +212,10 @@ public class CobraUtil {
   }
   
   /**
-   * 
-   * 
+   * Appends notes to the given {@link SBase} from the given {@link Properties}.
+   *
    * @param sbase
-   * @param props
+   * @param properties
    */
   public static void appendCobraNotes(SBase  sbase, Properties properties) {
 
