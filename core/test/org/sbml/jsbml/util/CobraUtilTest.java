@@ -12,22 +12,39 @@ import org.sbml.jsbml.Parameter;
 public class CobraUtilTest {
 
   @Test
-  public void testParseCobraNotesRecognizesKnownKeys() throws XMLStreamException {
+  public void testParseCobraNotesRecognizesSimpleKeys() throws XMLStreamException {
     Parameter p = new Parameter(3, 1);
     p.setId("p");
 
-    // Simple COBRA-style notes using known keys
+    // Simple COBRA-style notes using keys without spaces
     p.appendNotes("<body xmlns=\"http://www.w3.org/1999/xhtml\">"
         + "<p>FORMULA: H4N</p>"
         + "<p>CHARGE: 1</p>"
-        + "<p>EC Number: 123</p>"
+        + "<p>GENE_ASSOCIATION: 1594.1</p>"
         + "</body>");
 
     Properties props = CobraUtil.parseCobraNotes(p);
 
     assertEquals("H4N", props.getProperty("FORMULA"));
     assertEquals("1", props.getProperty("CHARGE"));
-    assertEquals("123", props.getProperty("EC Number"));
+    assertEquals("1594.1", props.getProperty("GENE_ASSOCIATION"));
+  }
+
+  @Test
+  public void testParseCobraNotesIgnoresKeysWithSpaces() throws XMLStreamException {
+    Parameter p = new Parameter(3, 1);
+    p.setId("p");
+
+    // Keys with spaces before the colon should be ignored by the generic rule
+    p.appendNotes("<body xmlns=\"http://www.w3.org/1999/xhtml\">"
+        + "<p>EC Number: 123</p>"
+        + "<p>Confidence Level: 4</p>"
+        + "</body>");
+
+    Properties props = CobraUtil.parseCobraNotes(p);
+
+    assertNull("Keys with spaces should be ignored", props.getProperty("EC Number"));
+    assertNull("Keys with spaces should be ignored", props.getProperty("Confidence Level"));
   }
 
   @Test
