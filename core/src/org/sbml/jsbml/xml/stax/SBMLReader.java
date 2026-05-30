@@ -41,7 +41,7 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.Characters;
-import javax.xml.stream.events.EndDocument;
+import javax.xml.stream.events.EndElement;
 import javax.xml.stream.events.Namespace;
 import javax.xml.stream.events.StartDocument;
 import javax.xml.stream.events.StartElement;
@@ -607,309 +607,263 @@ public class SBMLReader {
    * @return an {@code Object} representing the given XML.
    * @throws XMLStreamException
    */
-  private Object readXMLFromXMLEventReader(XMLEventReader xmlEventReader, TreeNodeChangeListener listener)  throws XMLStreamException {
-
-    initializePackageParsers();
-
-    XMLEvent event;
-    StartElement startElement = null;
-    ReadingParser parser = null;
-    Stack<Object> sbmlElements = new Stack<Object>();
-    QName currentNode = null;
+  /** Mutable state shared across XML event handlers during a single parse. */
+  private static final class XmlParseState {
     String encoding = null;
     boolean isNested = false;
     boolean isText = false;
     boolean isHTML = false;
     boolean isInsideAnnotation = false;
     int annotationDeepness = -1;
-    int level = -1, version = -1;
+    int level = -1;
+    int version = -1;
     Object lastElement = null;
+    QName currentNode = null;
+    ReadingParser parser = null;
+    final Stack<Object> sbmlElements = new Stack<Object>();
+  }
 
-    // Read all the elements of the file
+  private Object readXMLFromXMLEventReader(XMLEventReader xmlEventReader, TreeNodeChangeListener listener)
+      throws XMLStreamException {
+    initializePackageParsers();
+    XmlParseState state = new XmlParseState();
+
     while (xmlEventReader.hasNext()) {
-      event = xmlEventReader.nextEvent();
+      XMLEvent event = xmlEventReader.nextEvent();
 
-      // StartDocument
       if (event.isStartDocument()) {
-        @SuppressWarnings("unused")
-        StartDocument startDocument = (StartDocument) event;
-        // checking the declared encoding
-        if (startDocument.encodingSet()) {
-          encoding = startDocument.getCharacterEncodingScheme();        
+        handleStartDocument((StartDocument) event, state);
+      } else if (event.isStartElement()) {
+        handleStartElement(event.asStartElement(), state, listener);
+      } else if (event.isCharacters()) {
+        handleCharacters(event.asCharacters(), state);
+      } else if (event.isEndElement()) {
+        Object result = handleEndElement(event.asEndElement(), state);
+        if (result != null) {
+          return result;
         }
-      }
-      // EndDocument
-      else if (event.isEndDocument()) {
-        @SuppressWarnings("unused")
-        EndDocument endDocument = (EndDocument) event;
-        // nothing to do?
-      }
-      // StartElement
-      else if (event.isStartElement()) {
-
-        startElement = event.asStartElement();
-        currentNode = startElement.getName();
-        isNested = false;
-        isText = false;
-
-        addAnnotationParsers(startElement);
-
-        // If the XML element is the sbml element, creates the
-        // necessary ReadingParser instances.
-        // Creates an empty SBMLDocument instance and pushes it on
-        // the SBMLElements stack.
-        if (currentNode.getLocalPart().equals("sbml")) {
-
-          SBMLDocument sbmlDocument = new SBMLDocument();
-          sbmlDocument.putUserObject(JSBML.READING_IN_PROGRESS, Boolean.TRUE);
-          
-          if (encoding != null) {
-            sbmlDocument.putUserObject(SBMLDocumentConstraints.XML_DECLARED_ENCODING, encoding);
-          }
-
-          if (currentNode.getPrefix() != null && currentNode.getPrefix().trim().length() > 0) {
-            sbmlDocument.putUserObject(JSBML.ELEMENT_XML_PREFIX, currentNode.getPrefix());
-          }
-
-          // the output of the change listener is activated or not via log4j.properties
-          sbmlDocument.addTreeNodeChangeListener(listener == null
-              ? new SimpleTreeNodeChangeListener() : listener);
-
-          for (@SuppressWarnings("unchecked")
-          Iterator<Attribute> iterator = startElement.getAttributes(); iterator.hasNext();)
-          {
-            Attribute attr = iterator.next();
-            if (attr.getName().toString().equals("level")) {
-              level = StringTools.parseSBMLInt(attr.getValue());
-              sbmlDocument.setLevel(level);
-            } else if (attr.getName().toString().equals("version")) {
-              version = StringTools.parseSBMLInt(attr.getValue());
-              sbmlDocument.setVersion(version);
-            }
-          }
-          sbmlElements.push(sbmlDocument);
-        }
-        else if (lastElement == null) // We are probably reading some 'free' XML, mathML or HTML
-        {
-          // We put a fake Constraint element in the stack that can take either math, notes or message.
-          // This a hack to be able to read some mathMl or notes by themselves.
-          // If the parent container is set in this SBMLReader, we use it instead.
-
-          // TODO: will not work with arbitrary SBML part
-          // TODO: we need to be able, somehow, to set the Model element in the Constraint
-          // to be able to have a fully functional parsing. Without it the functionDefinition, for examples, are
-          // not properly recognized.
-          if (astNodeParent != null)
-          {
-            sbmlElements.push(astNodeParent);
-          }
-          else
-          {
-            Constraint constraint = new Constraint(3,1);
-            sbmlElements.push(constraint);
-          }
-
-          if (currentNode.getLocalPart().equals("notes") || currentNode.getLocalPart().equals("message")
-              || currentNode.getLocalPart().equals("annotation"))
-          {
-            initializedParsers.put("", sbmlCoreParser);
-
-            // get the sbml namespace to set it on the first element to parse
-            SBase sbase = (SBase) sbmlElements.firstElement();
-            String sbmlNamespace = JSBML.getNamespaceFrom(sbase.getLevel(), sbase.getVersion());
-            currentNode = new QName(sbmlNamespace, currentNode.getLocalPart());
-          }
-          else if (currentNode.getLocalPart().equals("math"))
-          {
-            initializedParsers.put("", new MathMLStaxParser());
-            initializedParsers.put(ASTNode.URI_MATHML_DEFINITION, new MathMLStaxParser());
-            currentNode = new QName(ASTNode.URI_MATHML_DEFINITION, "math");
-          }
-          // TODO - add something generic for the L3 packages or change all the parsers to work if the contextObject is 'null' ??
-
-        } else if (currentNode.getLocalPart().equals("annotation")) {
-
-          // get the sbml namespace as some element can have similar names in different namespaces
-          SBase sbmlDoc = (SBase) sbmlElements.firstElement();
-          String sbmlNamespace = JSBML.getNamespaceFrom(sbmlDoc.getLevel(), sbmlDoc.getVersion());
-
-          if (currentNode.getNamespaceURI().equals(sbmlNamespace)) {
-            if (isInsideAnnotation) {
-              logger.warn("Starting to read a new annotation element while the previous annotation element is not finished.");
-            }
-            isInsideAnnotation = true;
-          }
-        }
-        else if (isInsideAnnotation) {
-          // Count the number of open elements to know how deep we are in the annotation
-          annotationDeepness++;
-        }
-        else if (currentNode.getLocalPart().equals("notes") || currentNode.getLocalPart().equals("message"))
-        {
-          // get the sbml namespace as some element can have similar names in different namespaces
-          SBase firstElement = (SBase) sbmlElements.firstElement();
-
-          if (firstElement instanceof SBMLDocument) {
-            SBase sbmlDoc = (SBase) sbmlElements.firstElement();
-            String sbmlNamespace = JSBML.getNamespaceFrom(sbmlDoc.getLevel(), sbmlDoc.getVersion());
-
-            if (currentNode.getNamespaceURI().equals(sbmlNamespace)) {
-              isHTML = true;
-            }
-          } else if (firstElement instanceof Constraint) { // we are reading a partial document from SBMLReader#readNotes for example
-            isHTML = true;
-          }
-        }
-
-        if (isInsideAnnotation && logger.isDebugEnabled()) {
-          logger.debug("startElement: local part = " + currentNode.getLocalPart());
-          // logger.debug("startElement: annotation deepness = " + annotationDeepness);
-        }
-
-        // annotationDeepness = 0 is the annotation element and we want to pass everything inside it to the anyXML parser
-        parser = processStartElement(startElement, currentNode, isHTML,	sbmlElements, (annotationDeepness > 0));
-        lastElement = sbmlElements.peek();
-
-      }
-      // Characters
-      else if (event.isCharacters()) {
-        Characters characters = event.asCharacters();
-
-        if (!characters.isWhiteSpace()) {
-          isText = true; // the characters are not only 'white spaces'
-        }
-        if ((!sbmlElements.isEmpty() && (sbmlElements.peek() instanceof XMLNode)) || isHTML || isInsideAnnotation) {
-          isText = true; // We want to keep the whitespace/formatting when reading html block
-        }
-
-        // process the text of a XML element.
-        if ((parser != null) && !sbmlElements.isEmpty()	&& (isText || isInsideAnnotation)) {
-
-          if (isHTML) {
-            parser = initializedParsers.get(JSBML.URI_XHTML_DEFINITION); // TODO : this is probably not needed
-          }
-          else if (isInsideAnnotation) {
-            parser = initializedParsers.get("anyXML");
-          }
-
-          if (logger.isDebugEnabled()) {
-            logger.debug(" PackageParser = " + parser.getClass().getName());
-            logger.debug(" Characters = @" + characters.getData() + "@");
-          }
-
-          if (currentNode != null) {
-
-            // logger.debug("isCharacter: elementName = " + currentNode.getLocalPart());
-
-            parser.processCharactersOf(currentNode.getLocalPart(),
-              characters.getData(), sbmlElements.peek());
-          } else {
-            parser.processCharactersOf(null, characters.getData(),
-              sbmlElements.peek());
-          }
-        } else if (isText) {
-          logger.warn(MessageFormat.format("Some characters cannot be read: {0}", characters.getData()));
-          if (logger.isDebugEnabled()) {
-            logger.debug("PackageParser = " + parser);
-            if (sbmlElements.isEmpty()) {
-              logger.debug("The Object Stack is empty!");
-            } else {
-              logger.debug("The current Object in the stack is: " + sbmlElements.peek());
-            }
-          }
-
-
-        }
-      }
-      // EndElement
-      else if (event.isEndElement()) {
-
-        // the method  processEndElement will return null until we arrive at the end of the 'sbml' element.
-        lastElement = sbmlElements.peek();
-
-        currentNode = event.asEndElement().getName();
-
-        if (currentNode != null) {
-
-          boolean isSBMLelement = true;
-
-          // get the sbml namespace as some element can have similar names in different namespaces
-          if (sbmlElements.firstElement() instanceof SBase)
-          {
-            SBase sbmlDoc = (SBase) sbmlElements.firstElement();
-            String sbmlNamespace = JSBML.getNamespaceFrom(sbmlDoc.getLevel(), sbmlDoc.getVersion());
-
-            if (!currentNode.getNamespaceURI().equals(sbmlNamespace)) {
-              isSBMLelement = false;
-            }
-          }
-
-          if (currentNode.getLocalPart().equals("annotation") && isSBMLelement)
-          {
-            isInsideAnnotation = false;
-            annotationDeepness = -1;
-
-            // calling the annotation parsers, but be robust against unexpected stack contents
-            if (lastElement instanceof Annotation) {
-              Annotation annotation = (Annotation) lastElement;
-              Object parent = annotation.getParent();
-
-              if (parent instanceof SBase) {
-                for (AnnotationReader annoReader : annotationParsers) {
-                  annoReader.processAnnotation((SBase) parent); // or take the second element in the stack ??
-                }
-              } else {
-                logger.error(format(
-                    "End of <annotation>: expected parent of Annotation to be an SBase but found {0}. Skipping annotation parsing.",
-                    parent == null ? "null" : parent.getClass().getCanonicalName()
-                ));
-              }
-            } else {
-              logger.error(format(
-                  "End of <annotation>: expected top stack element to be an Annotation but found {0}. Skipping annotation parsing.",
-                  lastElement == null ? "null" : lastElement.getClass().getCanonicalName()
-              ));
-            }
-            
-          } else if (isInsideAnnotation) {
-            annotationDeepness--;
-          }
-          else if ((currentNode.getLocalPart().equals("notes") || currentNode.getLocalPart().equals("message")) && isSBMLelement)
-          {
-            isHTML = false;
-          }
-        }
-
-        SBMLDocument sbmlDocument = processEndElement(currentNode, isNested, isText, isHTML,
-          level, version, parser, sbmlElements, (annotationDeepness >= 0));
-
-        if (sbmlDocument != null) {
-          return sbmlDocument;
-        }
-
-
-        currentNode = null;
-        isNested = false;
-        isText = false;
       }
     }
 
-    // We reach the end of the XML fragment and no 'sbml' have been found
-    // so we are probably parsing some math or notes String.
-
+    // Reached end of XML fragment without finding an 'sbml' element —
+    // likely parsing a standalone math or notes string.
     if (logger.isDebugEnabled()) {
-      logger.debug("no more XMLEvent: stack.size = " + sbmlElements.size());
-
-      logger.debug("no more XMLEvent: stack = " + sbmlElements);
+      logger.debug("no more XMLEvent: stack.size = " + state.sbmlElements.size());
+      logger.debug("no more XMLEvent: stack = " + state.sbmlElements);
     }
 
     initializedParsers.remove("");
+    return state.sbmlElements.isEmpty() ? null : state.sbmlElements.peek();
+  }
 
-    if (sbmlElements.size() > 0) {
-      return sbmlElements.peek();
+  private void handleStartDocument(StartDocument startDocument, XmlParseState state) {
+    if (startDocument.encodingSet()) {
+      state.encoding = startDocument.getCharacterEncodingScheme();
+    }
+  }
+
+  private void handleStartElement(StartElement startElement, XmlParseState state, TreeNodeChangeListener listener) {
+    state.currentNode = startElement.getName();
+    state.isNested = false;
+    state.isText = false;
+
+    addAnnotationParsers(startElement);
+
+    if (state.currentNode.getLocalPart().equals("sbml")) {
+      initializeSbmlDocument(startElement, state, listener);
+    } else if (state.lastElement == null) {
+      initializeFreeXmlParsing(state);
+    } else if (state.currentNode.getLocalPart().equals("annotation")) {
+      handleAnnotationStart(state);
+    } else if (state.isInsideAnnotation) {
+      state.annotationDeepness++;
+    } else if (state.currentNode.getLocalPart().equals("notes") || state.currentNode.getLocalPart().equals("message")) {
+      handleNotesOrMessageStart(state);
     }
 
-    return null;
+    if (state.isInsideAnnotation && logger.isDebugEnabled()) {
+      logger.debug("startElement: local part = " + state.currentNode.getLocalPart());
+    }
+
+    // annotationDeepness = 0 is the annotation element; pass everything inside it to the anyXML parser
+    state.parser = processStartElement(startElement, state.currentNode, state.isHTML, state.sbmlElements, (state.annotationDeepness > 0));
+    state.lastElement = state.sbmlElements.peek();
+  }
+
+  private void initializeSbmlDocument(StartElement startElement, XmlParseState state, TreeNodeChangeListener listener) {
+    SBMLDocument sbmlDocument = new SBMLDocument();
+    sbmlDocument.putUserObject(JSBML.READING_IN_PROGRESS, Boolean.TRUE);
+
+    if (state.encoding != null) {
+      sbmlDocument.putUserObject(SBMLDocumentConstraints.XML_DECLARED_ENCODING, state.encoding);
+    }
+    if (state.currentNode.getPrefix() != null && state.currentNode.getPrefix().trim().length() > 0) {
+      sbmlDocument.putUserObject(JSBML.ELEMENT_XML_PREFIX, state.currentNode.getPrefix());
+    }
+
+    sbmlDocument.addTreeNodeChangeListener(listener == null ? new SimpleTreeNodeChangeListener() : listener);
+
+    for (@SuppressWarnings("unchecked")
+    Iterator<Attribute> iterator = startElement.getAttributes(); iterator.hasNext();) {
+      Attribute attr = iterator.next();
+      if (attr.getName().toString().equals("level")) {
+        state.level = StringTools.parseSBMLInt(attr.getValue());
+        sbmlDocument.setLevel(state.level);
+      } else if (attr.getName().toString().equals("version")) {
+        state.version = StringTools.parseSBMLInt(attr.getValue());
+        sbmlDocument.setVersion(state.version);
+      }
+    }
+    state.sbmlElements.push(sbmlDocument);
+  }
+
+  private void initializeFreeXmlParsing(XmlParseState state) {
+    // Hack: push a fake Constraint so math/notes/annotation fragments can be parsed standalone.
+    // If an explicit parent container was set on this reader, use it instead.
+    // TODO: will not work with arbitrary SBML part
+    // TODO: set the Model element in the Constraint so FunctionDefinitions are recognized.
+    if (astNodeParent != null) {
+      state.sbmlElements.push(astNodeParent);
+    } else {
+      state.sbmlElements.push(new Constraint(3, 1));
+    }
+
+    if (state.currentNode.getLocalPart().equals("notes") || state.currentNode.getLocalPart().equals("message")
+        || state.currentNode.getLocalPart().equals("annotation")) {
+      initializedParsers.put("", sbmlCoreParser);
+      SBase sbase = (SBase) state.sbmlElements.firstElement();
+      String sbmlNamespace = JSBML.getNamespaceFrom(sbase.getLevel(), sbase.getVersion());
+      state.currentNode = new QName(sbmlNamespace, state.currentNode.getLocalPart());
+    } else if (state.currentNode.getLocalPart().equals("math")) {
+      initializedParsers.put("", new MathMLStaxParser());
+      initializedParsers.put(ASTNode.URI_MATHML_DEFINITION, new MathMLStaxParser());
+      state.currentNode = new QName(ASTNode.URI_MATHML_DEFINITION, "math");
+    }
+    // TODO: add something generic for the L3 packages or change all parsers to work when contextObject is null
+  }
+
+  private void handleAnnotationStart(XmlParseState state) {
+    SBase sbmlDoc = (SBase) state.sbmlElements.firstElement();
+    String sbmlNamespace = JSBML.getNamespaceFrom(sbmlDoc.getLevel(), sbmlDoc.getVersion());
+
+    if (state.currentNode.getNamespaceURI().equals(sbmlNamespace)) {
+      if (state.isInsideAnnotation) {
+        logger.warn("Starting to read a new annotation element while the previous annotation element is not finished.");
+      }
+      state.isInsideAnnotation = true;
+    }
+  }
+
+  private void handleNotesOrMessageStart(XmlParseState state) {
+    SBase firstElement = (SBase) state.sbmlElements.firstElement();
+
+    if (firstElement instanceof SBMLDocument) {
+      String sbmlNamespace = JSBML.getNamespaceFrom(firstElement.getLevel(), firstElement.getVersion());
+      if (state.currentNode.getNamespaceURI().equals(sbmlNamespace)) {
+        state.isHTML = true;
+      }
+    } else if (firstElement instanceof Constraint) {
+      // reading a partial document, e.g. via SBMLReader#readNotes
+      state.isHTML = true;
+    }
+  }
+
+  private void handleCharacters(Characters characters, XmlParseState state) {
+    if (!characters.isWhiteSpace()) {
+      state.isText = true;
+    }
+    if ((!state.sbmlElements.isEmpty() && (state.sbmlElements.peek() instanceof XMLNode)) || state.isHTML || state.isInsideAnnotation) {
+      state.isText = true; // preserve whitespace/formatting inside HTML blocks
+    }
+
+    if ((state.parser != null) && !state.sbmlElements.isEmpty() && (state.isText || state.isInsideAnnotation)) {
+      if (state.isHTML) {
+        state.parser = initializedParsers.get(JSBML.URI_XHTML_DEFINITION); // TODO: probably not needed
+      } else if (state.isInsideAnnotation) {
+        state.parser = initializedParsers.get("anyXML");
+      }
+
+      if (logger.isDebugEnabled()) {
+        logger.debug(" PackageParser = " + state.parser.getClass().getName());
+        logger.debug(" Characters = @" + characters.getData() + "@");
+      }
+
+      if (state.currentNode != null) {
+        state.parser.processCharactersOf(state.currentNode.getLocalPart(), characters.getData(), state.sbmlElements.peek());
+      } else {
+        state.parser.processCharactersOf(null, characters.getData(), state.sbmlElements.peek());
+      }
+    } else if (state.isText) {
+      logger.warn(MessageFormat.format("Some characters cannot be read: {0}", characters.getData()));
+      if (logger.isDebugEnabled()) {
+        logger.debug("PackageParser = " + state.parser);
+        if (state.sbmlElements.isEmpty()) {
+          logger.debug("The Object Stack is empty!");
+        } else {
+          logger.debug("The current Object in the stack is: " + state.sbmlElements.peek());
+        }
+      }
+    }
+  }
+
+  private Object handleEndElement(EndElement endElement, XmlParseState state) {
+    state.lastElement = state.sbmlElements.peek();
+    state.currentNode = endElement.getName();
+
+    if (state.currentNode != null) {
+      boolean isSBMLelement = isSbmlNamespaceElement(state);
+
+      if (state.currentNode.getLocalPart().equals("annotation") && isSBMLelement) {
+        state.isInsideAnnotation = false;
+        state.annotationDeepness = -1;
+        processAnnotationEnd(state.lastElement);
+      } else if (state.isInsideAnnotation) {
+        state.annotationDeepness--;
+      } else if ((state.currentNode.getLocalPart().equals("notes") || state.currentNode.getLocalPart().equals("message")) && isSBMLelement) {
+        state.isHTML = false;
+      }
+    }
+
+    // processEndElement returns null until the closing </sbml> element is reached
+    SBMLDocument sbmlDocument = processEndElement(state.currentNode, state.isNested, state.isText, state.isHTML,
+      state.level, state.version, state.parser, state.sbmlElements, (state.annotationDeepness >= 0));
+
+    state.currentNode = null;
+    state.isNested = false;
+    state.isText = false;
+
+    return sbmlDocument;
+  }
+
+  private boolean isSbmlNamespaceElement(XmlParseState state) {
+    if (state.sbmlElements.firstElement() instanceof SBase) {
+      SBase sbmlDoc = (SBase) state.sbmlElements.firstElement();
+      String sbmlNamespace = JSBML.getNamespaceFrom(sbmlDoc.getLevel(), sbmlDoc.getVersion());
+      return state.currentNode.getNamespaceURI().equals(sbmlNamespace);
+    }
+    return true;
+  }
+
+  private void processAnnotationEnd(Object lastElement) {
+    if (lastElement instanceof Annotation) {
+      Annotation annotation = (Annotation) lastElement;
+      Object parent = annotation.getParent();
+      if (parent instanceof SBase) {
+        for (AnnotationReader annoReader : annotationParsers) {
+          annoReader.processAnnotation((SBase) parent);
+        }
+      } else {
+        logger.error(format(
+          "End of <annotation>: expected parent of Annotation to be an SBase but found {0}. Skipping annotation parsing.",
+          parent == null ? "null" : parent.getClass().getCanonicalName()
+        ));
+      }
+    } else {
+      logger.error(format(
+        "End of <annotation>: expected top stack element to be an Annotation but found {0}. Skipping annotation parsing.",
+        lastElement == null ? "null" : lastElement.getClass().getCanonicalName()
+      ));
+    }
   }
 
   /**
