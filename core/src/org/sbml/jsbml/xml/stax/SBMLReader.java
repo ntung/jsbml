@@ -121,7 +121,7 @@ public class SBMLReader {
  private Map<String, ReadingParser> initializedParsers = new HashMap<String, ReadingParser>();
 
  /**
-  *
+  * Annotation readers applied after the {@code <annotation>} element is fully parsed.
   */
  private List<AnnotationReader> annotationParsers = new ArrayList<AnnotationReader>();
 
@@ -165,8 +165,10 @@ public class SBMLReader {
   }
 
   /**
-   * Associates any unknown namespaces with the {@link AnnotationReader}.
-   * @param startElement
+   * Associates any unknown namespaces encountered in {@code startElement} with the anyXML
+   * {@link AnnotationReader}, so they are not silently dropped during parsing.
+   *
+   * @param startElement the start element whose namespace declarations are inspected
    */
   private void addAnnotationParsers(StartElement startElement)
   {
@@ -281,25 +283,26 @@ public class SBMLReader {
   }
 
   /**
+   * Reads and parses the SBML document from the given file using a default change listener.
    *
-   * @param file
-   * @return
-   * @throws XMLStreamException
-   * @throws IOException
+   * @param file the SBML file to read
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the XML is malformed or cannot be parsed
+   * @throws IOException if the file cannot be opened or read
    */
   public SBMLDocument readSBML(File file) throws IOException, XMLStreamException {
     return readSBML(file, null);
   }
 
   /**
-   * Reads a SBML String from the given file.
+   * Reads and parses the SBML document from the given file.
    *
-   * @param file
-   *            A file containing SBML content.
-   * @param listener
-   * @return the matching SBMLDocument instance.
-   * @throws IOException
-   * @throws XMLStreamException
+   * @param file     a {@link File} containing valid SBML content
+   * @param listener a {@link TreeNodeChangeListener} notified of model changes during parsing,
+   *                 or {@code null} to use a no-op listener
+   * @return the parsed {@link SBMLDocument}
+   * @throws IOException        if the file cannot be opened or read
+   * @throws XMLStreamException if the XML is malformed or cannot be parsed
    */
   public SBMLDocument readSBML(File file, TreeNodeChangeListener listener) throws IOException, XMLStreamException {
     FileInputStream stream = new FileInputStream(file);
@@ -340,13 +343,14 @@ public class SBMLReader {
   }
 
   /**
-   * Reads SBML from a given file.
+   * Reads and parses the SBML file at the given path.
    *
-   * @param file
-   *            The path to an SBML file.
-   * @return the matching SBMLDocument instance.
-   * @throws XMLStreamException
-   * @throws IOException
+   * <p>Convenience alias for {@link #readSBMLFile(String)}.</p>
+   *
+   * @param file the path to the SBML file to read
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the file does not contain valid SBML
+   * @throws IOException        if the file cannot be opened or read
    */
   public SBMLDocument readSBML(String file) throws XMLStreamException,
   IOException {
@@ -354,14 +358,12 @@ public class SBMLReader {
   }
 
   /**
-   * Reads the SBML file 'fileName' and creates/initialises a SBMLDocument
-   * instance.
+   * Reads and parses the SBML file at the given path.
    *
-   * @param fileName
-   *         name of the SBML file to read.
-   * @return the initialized SBMLDocument.
-   * @throws XMLStreamException
-   * @throws IOException
+   * @param fileName the path to the SBML file to read
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the file does not contain valid SBML
+   * @throws IOException        if the file cannot be opened or read
    */
   public SBMLDocument readSBMLFile(String fileName)
       throws XMLStreamException, IOException {
@@ -370,12 +372,12 @@ public class SBMLReader {
 
 
   /**
-   * Reads an {@link SBMLDocument} from the given {@link XMLEventReader}
+   * Reads an {@link SBMLDocument} from the given {@link XMLEventReader}.
    *
-   * @param xmlEventReader
-   * @param listener
-   * @return
-   * @throws XMLStreamException
+   * @param xmlEventReader an {@link XMLEventReader} positioned at the start of an SBML document
+   * @param listener       a {@link TreeNodeChangeListener} notified of model changes during parsing
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the XML stream cannot be read or is not valid SBML
    */
   public SBMLDocument readSBML(XMLEventReader xmlEventReader, TreeNodeChangeListener listener)
       throws XMLStreamException {
@@ -383,22 +385,24 @@ public class SBMLReader {
   }
 
   /**
+   * Reads an {@link SBMLDocument} from the given {@link XMLEventReader} using a default change listener.
    *
-   * @param xmlEventReader
-   * @return
-   * @throws XMLStreamException
+   * @param xmlEventReader an {@link XMLEventReader} positioned at the start of an SBML document
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the XML stream cannot be read or is not valid SBML
    */
   public SBMLDocument readSBML(XMLEventReader xmlEventReader) throws XMLStreamException {
     return readSBML(xmlEventReader, new SimpleTreeNodeChangeListener());
   }
 
   /**
-   * Reads a mathML String into an {@link ASTNode}.
+   * Parses a MathML string into an {@link ASTNode}.
    *
-   * @param mathML
-   * @param listener
-   * @return an {@link ASTNode} representing the given mathML String.
-   * @throws XMLStreamException
+   * @param mathML   a MathML XML string to parse
+   * @param listener a {@link TreeNodeChangeListener} notified of tree changes during parsing
+   * @return an {@link ASTNode} representing the root of the parsed expression,
+   *         or {@code null} if no math element could be extracted
+   * @throws XMLStreamException if the MathML string cannot be parsed
    */
   public ASTNode readMathML(String mathML, TreeNodeChangeListener listener)
       throws XMLStreamException
@@ -444,13 +448,17 @@ public class SBMLReader {
   }
 
   /**
-   * Reads a mathML {@link String} into an {@link ASTNode}.
+   * Parses a MathML string into an {@link ASTNode}, with awareness of the parent container.
+   * Providing a parent {@link MathContainer} enables correct resolution of
+   * {@code FunctionDefinition} references during parsing.
    *
-   * @param mathML
-   * @param listener
-   * @param parent the parent {@link MathContainer} of the mathML to parse
-   * @return an {@link ASTNode} representing the given mathML {@link String}.
-   * @throws XMLStreamException
+   * @param mathML   a MathML XML string to parse
+   * @param listener a {@link TreeNodeChangeListener} notified of tree changes during parsing
+   * @param parent   the {@link MathContainer} that will own the resulting {@link ASTNode};
+   *                 used to resolve function definitions
+   * @return an {@link ASTNode} representing the root of the parsed expression,
+   *         or {@code null} if no math element could be extracted
+   * @throws XMLStreamException if the MathML string cannot be parsed
    */
   public ASTNode readMathML(String mathML, TreeNodeChangeListener listener, MathContainer parent)
       throws XMLStreamException
@@ -473,22 +481,24 @@ public class SBMLReader {
   }
 
   /**
+   * Parses a MathML string into an {@link ASTNode} using a default change listener.
    *
-   * @param mathML
-   * @return
-   * @throws XMLStreamException
+   * @param mathML a MathML XML string to parse
+   * @return an {@link ASTNode} representing the root of the parsed expression,
+   *         or {@code null} if no math element could be extracted
+   * @throws XMLStreamException if the MathML string cannot be parsed
    */
   public ASTNode readMathML(String mathML) throws XMLStreamException {
     return readMathML(mathML, new SimpleTreeNodeChangeListener());
   }
 
   /**
-   * Reads a notes XML {@link String} into an {@link XMLNode}.
+   * Parses an XHTML notes string into an {@link XMLNode}.
    *
-   * @param notesXHTML
-   * @param listener
-   * @return an {@link XMLNode} representing the given notes {@link String}.
-   * @throws XMLStreamException
+   * @param notesXHTML a notes XML string (e.g. {@code <notes><body>...</body></notes>})
+   * @param listener   a {@link TreeNodeChangeListener} notified of tree changes during parsing
+   * @return an {@link XMLNode} representing the parsed notes, or {@code null} if parsing fails
+   * @throws XMLStreamException if the notes string cannot be parsed
    */
   public XMLNode readNotes(String notesXHTML, TreeNodeChangeListener listener)
       throws XMLStreamException {
@@ -530,22 +540,23 @@ public class SBMLReader {
   }
 
   /**
+   * Parses an XHTML notes string into an {@link XMLNode} using a default change listener.
    *
-   * @param notesXHTML
-   * @return
-   * @throws XMLStreamException
+   * @param notesXHTML a notes XML string (e.g. {@code <notes><body>...</body></notes>})
+   * @return an {@link XMLNode} representing the parsed notes, or {@code null} if parsing fails
+   * @throws XMLStreamException if the notes string cannot be parsed
    */
   public XMLNode readNotes(String notesXHTML) throws XMLStreamException {
     return readNotes(notesXHTML, new SimpleTreeNodeChangeListener());
   }
 
   /**
-   * Reads a SBML document from the given {@code stream}.
+   * Reads and parses a SBML document from the given input stream.
    *
-   * @param stream
-   * @param listener
-   * @return
-   * @throws XMLStreamException
+   * @param stream   an {@link InputStream} containing valid SBML XML content
+   * @param listener a {@link TreeNodeChangeListener} notified of model changes during parsing
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the stream cannot be read or does not contain valid SBML
    */
   public SBMLDocument readSBMLFromStream(InputStream stream, TreeNodeChangeListener listener)
       throws XMLStreamException {
@@ -558,23 +569,25 @@ public class SBMLReader {
   }
 
   /**
+   * Reads and parses a SBML document from the given input stream using a default change listener.
    *
-   * @param stream
-   * @return
-   * @throws XMLStreamException
+   * @param stream an {@link InputStream} containing valid SBML XML content
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the stream cannot be read or does not contain valid SBML
    */
   public SBMLDocument readSBMLFromStream(InputStream stream) throws XMLStreamException {
     return readSBMLFromStream(stream, new SimpleTreeNodeChangeListener());
   }
 
   /**
-   * Reads a XML document from the given {@code stream}. It need to be a self contain part of
-   * an SBML document.
+   * Reads an XML document from the given stream. The stream must contain a self-contained
+   * fragment of an SBML document (full model, math element, or notes element).
    *
-   * @param stream
-   * @param listener
-   * @return
-   * @throws XMLStreamException
+   * @param stream   an {@link InputStream} containing SBML XML content
+   * @param listener a {@link TreeNodeChangeListener} notified of tree changes during parsing
+   * @return the top-level object parsed from the stream: an {@link SBMLDocument}, {@link ASTNode},
+   *         {@link XMLNode}, or {@code null} if the stream is empty
+   * @throws XMLStreamException if the stream cannot be read or parsed
    */
   private Object readXMLFromStream(InputStream stream, TreeNodeChangeListener listener)
       throws XMLStreamException {
@@ -858,12 +871,12 @@ public class SBMLReader {
   }
 
   /**
-   * Reads a SBML model from the given XML String.
+   * Reads and parses a SBML document from the given XML string.
    *
-   * @param xml
-   * @param listener
-   * @return
-   * @throws XMLStreamException
+   * @param xml      a string containing a complete, valid SBML document
+   * @param listener a {@link TreeNodeChangeListener} notified of model changes during parsing
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the string does not contain valid SBML
    */
   public SBMLDocument readSBMLFromString(String xml, TreeNodeChangeListener listener) throws XMLStreamException {
     Object readObject = readXMLFromStream(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), listener);
@@ -874,22 +887,25 @@ public class SBMLReader {
   }
 
   /**
+   * Reads and parses a SBML document from the given XML string using a default change listener.
    *
-   * @param xml
-   * @return
-   * @throws XMLStreamException
+   * @param xml a string containing a complete, valid SBML document
+   * @return the parsed {@link SBMLDocument}
+   * @throws XMLStreamException if the string does not contain valid SBML
    */
   public SBMLDocument readSBMLFromString(String xml) throws XMLStreamException {
     return readSBMLFromString(xml, new SimpleTreeNodeChangeListener());
   }
 
   /**
-   * Reads an XML {@link String} that should the part of a SBML model.
+   * Reads an XML string that is a self-contained fragment of an SBML model
+   * (full document, math element, or notes element).
    *
-   * @param xml
-   * @param listener
-   * @return
-   * @throws XMLStreamException
+   * @param xml      an XML string containing SBML content
+   * @param listener a {@link TreeNodeChangeListener} notified of tree changes during parsing
+   * @return the top-level parsed object: {@link SBMLDocument}, {@link ASTNode},
+   *         {@link XMLNode}, or {@code null}
+   * @throws XMLStreamException if the XML string cannot be parsed
    */
   private Object readXMLFromString(String xml, TreeNodeChangeListener listener)
       throws XMLStreamException {
@@ -898,14 +914,16 @@ public class SBMLReader {
 
 
   /**
-   * Process a {@link StartElement} event.
+   * Processes a {@link StartElement} event: selects the appropriate parser, delegates namespace
+   * and attribute processing, and pushes newly created model objects onto the element stack.
    *
-   * @param startElement
-   * @param currentNode
-   * @param isHTML
-   * @param sbmlElements
-   * @param isInsideAnnotation
-   * @return
+   * @param startElement       the SAX/StAX start-element event to process
+   * @param currentNode        the qualified name of the element being opened
+   * @param isHTML             {@code true} when inside a notes/message XHTML block
+   * @param sbmlElements       the stack of in-progress model objects
+   * @param isInsideAnnotation {@code true} when inside an {@code <annotation>} block, causing
+   *                           the anyXML parser to handle all child content
+   * @return the {@link ReadingParser} selected for this element, or {@code null} if none found
    */
   private ReadingParser processStartElement(StartElement startElement, QName currentNode,
     Boolean isHTML, Stack<Object> sbmlElements, boolean isInsideAnnotation)
@@ -1071,13 +1089,14 @@ public class SBMLReader {
   // TODO: the attributes hasAttributes, hasNamespace, isLastAttribute and  isLastNamespace are probably not needed for XML reading.
 
   /**
-   * Process Namespaces of the current element on the stack.
+   * Processes all namespace declarations on the current element, notifying both the element's
+   * own parser and any secondary parser registered for each namespace URI.
    *
-   * @param nam
-   * @param currentNode
-   * @param sbmlElements
-   * @param parser
-   * @param hasAttributes
+   * @param nam           iterator over the namespace declarations on the current element
+   * @param currentNode   the qualified name of the element whose namespaces are being processed
+   * @param sbmlElements  the stack of in-progress model objects; the top element receives the call
+   * @param parser        the primary {@link ReadingParser} for the current element
+   * @param hasAttributes {@code true} if the current element has attributes
    */
   private void processNamespaces(Iterator<Namespace> nam, QName currentNode,
     Stack<Object> sbmlElements,	ReadingParser parser, boolean hasAttributes)
@@ -1119,14 +1138,16 @@ public class SBMLReader {
   }
 
   /**
-   * Process Attributes of the current element on the stack.
+   * Processes all attribute declarations on the current element, dispatching each attribute
+   * to the appropriate parser and storing any unrecognised attributes as unknown.
    *
-   * @param att
-   * @param currentNode
-   * @param sbmlElements
-   * @param parser
-   * @param hasAttributes
-   * @param isInsideAnnotation
+   * @param att                iterator over the attributes of the current element
+   * @param currentNode        the qualified name of the element whose attributes are being processed
+   * @param sbmlElements       the stack of in-progress model objects; the top element receives each call
+   * @param parser             the primary {@link ReadingParser} used when no namespace-specific parser is found
+   * @param hasAttributes      {@code true} if the current element has attributes (passed through to the parser)
+   * @param isInsideAnnotation {@code true} when inside an {@code <annotation>} block; routes all
+   *                           namespaced attributes to the anyXML parser
    */
   private void processAttributes(Iterator<Attribute> att, QName currentNode,
     Stack<Object> sbmlElements, ReadingParser parser, boolean hasAttributes,
@@ -1140,7 +1161,7 @@ public class SBMLReader {
       boolean isLastAttribute = !att.hasNext();
       QName attributeName = attribute.getName();
 
-      if (attribute.getName().getNamespaceURI().length() > 0) {
+      if (!attribute.getName().getNamespaceURI().isEmpty()) {
         String attributeNamespaceURI = attribute.getName().getNamespaceURI();
 
         if (isInsideAnnotation)
@@ -1179,18 +1200,21 @@ public class SBMLReader {
 
 
   /**
-   * Process the end of an element.
+   * Processes an end-element event: notifies the active parser, pops the element from the
+   * stack, and — when the closing {@code </sbml>} tag is reached — finalises all parsers
+   * and returns the completed document.
    *
-   * @param currentNode
-   * @param isNested
-   * @param isText
-   * @param isHTML
-   * @param level
-   * @param version
-   * @param parser
-   * @param sbmlElements
-   * @param isInsideAnnotation
-   * @return
+   * @param currentNode        the qualified name of the element being closed
+   * @param isNested           {@code true} if the element is nested inside another element of the same type
+   * @param isText             {@code true} if the element contained character data
+   * @param isHTML             {@code true} if the element was inside a notes/message XHTML block
+   * @param level              the SBML Level declared on the root {@code <sbml>} element
+   * @param version            the SBML Version declared on the root {@code <sbml>} element
+   * @param parser             the {@link ReadingParser} active when this element was opened
+   * @param sbmlElements       the stack of in-progress model objects
+   * @param isInsideAnnotation {@code true} when inside an {@code <annotation>} block
+   * @return the completed {@link SBMLDocument} when the root element is closed, or {@code null}
+   *         for all other elements
    */
   private SBMLDocument processEndElement(QName currentNode, Boolean isNested, Boolean isText,
     Boolean isHTML, int level, int version, ReadingParser parser,
@@ -1291,9 +1315,8 @@ public class SBMLReader {
             "\n Try to check if one needed parser is missing or if you are using a parser in development.");
       }
     } else {
-      // The initialized parsers map should be
-      // initialized as soon as there is a sbml node.
-      // If it is null, there is an syntax error in the SBML
+      // The initialized parsers map should be initialized as soon as there is a sbml node.
+      // If it is null, there is a syntax error in the SBML
       // file.
       logger.warn("The parsers are not initialized, this should not happen !!!");
     }
