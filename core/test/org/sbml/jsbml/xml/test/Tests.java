@@ -27,6 +27,7 @@ import org.sbml.jsbml.math.test.ASTNodeTest;
 import org.sbml.jsbml.math.test.TestInfixOperatorPrecedence;
 import org.sbml.jsbml.test.IdRegistrationTest;
 import org.sbml.jsbml.test.RemoveFromParentTest;
+import org.sbml.jsbml.xml.stax.SBMLReaderReadingTest;
 
 /**
  * JUnit suite of tests, including all test classes for SBML core.
@@ -38,7 +39,8 @@ import org.sbml.jsbml.test.RemoveFromParentTest;
 @SuiteClasses(value={SBML_L1VxTests.class, SBML_L2V1Test.class, GetNotesStringTests.class,
   UnregisterTests.class, RemoveFromParentTest.class, CVTermTests.class, RemoveFromParentTest.class, ASTNodeTest.class,
   ASTNodeInfixParsingTest.class, TestInfixOperatorPrecedence.class, IdRegistrationTest.class, XMLTokenTest.class,
-  CreatorTests.class, NestedCVTermTests.class, XXEInjectionTests.class, LibsbmlCompatibilityTests.class})
+  CreatorTests.class, NestedCVTermTests.class, XXEInjectionTests.class, LibsbmlCompatibilityTests.class,
+  SBMLReaderReadingTest.class})
 public class Tests {
 
 }
