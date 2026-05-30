@@ -49,9 +49,9 @@ import static java.text.MessageFormat.format;
 
 /**
  * Provides all the methods to read a SBML file.
- * 
- * <p>Warning: This class is not thread safe, so if using several thread to process SBML files in parallel
- * you should make sure to use new instances of SBMLReader in each thread.</p> 
+ *
+ * <p>Warning: This class is not thread safe, so if using some thread to process SBML files in parallel,
+ * you should make sure to use new instances of SBMLReader in each thread.</p>
  *
  * @author Marine Dumousseau
  * @author Andreas Dr&auml;ger
@@ -62,7 +62,7 @@ import static java.text.MessageFormat.format;
 public class SBMLReader {
 
   // Commenting out this static block as setting those system properties has some unwanted side
-  // effect, for example in OSGi where the properties are global
+  // effect - for example, in OSGi where the properties are global,
   // The fact to use directly WstxOutputFactory and WstxInputFactory when creating the parser
   // should prevent the problem that setting those properties was fixing.
   //  static {
@@ -94,7 +94,7 @@ public class SBMLReader {
 
   /**
    * The parent of the mathML we are parsing through the readMathML methods.
-   * It allow to parse properly the FunctionDefinition contained in the mathML.
+   * It allows parsing properly the FunctionDefinition contained in the mathML.
    *
    */
   private MathContainer astNodeParent;
@@ -167,7 +167,7 @@ public class SBMLReader {
 
 
   /**
-   * Reads the file that is passed as argument and write it to the console,
+   * Reads the file passed as argument and write it to the console,
    * using the method {@link SBMLWriter#write(SBMLDocument, java.io.OutputStream)}.
    *
    * @param args the command line arguments, we are taking the first one as
@@ -274,7 +274,7 @@ public class SBMLReader {
     } catch (XMLStreamException exc) {
       /*
        * Catching this exception makes sure that we have still the chance to
-       * close the stream. Otherwise it will stay opened although the execution
+       * close the stream. Otherwise, it will stay opened, although the execution
        * of this method is over.
        */
       exc1 = exc;
@@ -486,7 +486,7 @@ public class SBMLReader {
     }
     else if (object instanceof XMLNode)
     {
-      // Should not happen at the moment but could if readXMLFromString returned directly
+      // Should not happen at the moment but could if readXMLFromString directly returned
       // the XMLNode instead of a Constraint object.
       return (XMLNode) object;
     }
@@ -604,7 +604,7 @@ public class SBMLReader {
       }
     }
 
-    // Reached end of XML fragment without finding an 'sbml' element —
+    // Reached end of XML fragment without finding a 'sbml' element —
     // likely parsing a standalone math or notes string.
     if (logger.isDebugEnabled()) {
       logger.debug("no more XMLEvent: stack.size = " + state.sbmlElements.size());
@@ -663,7 +663,8 @@ public class SBMLReader {
 
     sbmlDocument.addTreeNodeChangeListener(listener == null ? new SimpleTreeNodeChangeListener() : listener);
 
-    for (Iterator<Attribute> iterator = startElement.getAttributes(); iterator.hasNext();) {
+    for (
+      Iterator<Attribute> iterator = startElement.getAttributes(); iterator.hasNext();) {
       Attribute attr = iterator.next();
       if (attr.getName().toString().equals("level")) {
         state.level = StringTools.parseSBMLInt(attr.getValue());
@@ -904,7 +905,7 @@ public class SBMLReader {
 
         parser = initializedParsers.get(elementNamespace);
         // if the current node is a notes or message element
-        // and the matching ReadingParser is a XMLNodeReader,
+        // and the matching ReadingParser is an XMLNodeReader,
         // we need to set the typeOfNotes variable of the
         // XMLNodeReader instance.
         if (currentNode.getLocalPart().equals("notes")
@@ -970,7 +971,7 @@ public class SBMLReader {
                       if (object instanceof ASTNode) {
                         ASTNode parent = (ASTNode) object;
 
-                        // we need to remove the last child as the hierarchy of children are stored in the ASTNode2 and not directly in the ASTNode
+                        // we need to remove the last child as the hierarchy of children is stored in the ASTNode2 and not directly in the ASTNode
                         parent.removeChild(parent.getChildCount() - 1);
                         parent.addChild(astNode);
                       } // else the parent can be directly a MathContainer - nothing to do in this case.
@@ -1001,7 +1002,7 @@ public class SBMLReader {
                       if (object instanceof ASTNode) {
                         ASTNode parent = (ASTNode) object;
 
-                        // we need to remove the last child as the hierarchy of children are stored in the ASTNode2 and not directly in the ASTNode
+                        // we need to remove the last child as the hierarchy of children is stored in the ASTNode2 and not directly in the ASTNode
                         parent.removeChild(parent.getChildCount() - 1);
                         parent.addChild(astNode);
                       } // else the parent can be directly a MathContainer - nothing to do in this case.
@@ -1018,7 +1019,7 @@ public class SBMLReader {
                 ((TreeNodeWithChangeSupport) processedElement).putUserObject(JSBML.READING_IN_PROGRESS, Boolean.TRUE);
               }
             } else {
-              // It is normal to have sometimes null returned as some of the
+              // It is normal to sometimes have null returned as some of the
               // XML elements are ignored or do not produce a new java object (like 'apply' in mathML).
             }
           }
@@ -1183,8 +1184,8 @@ public class SBMLReader {
         logger.debug("event.isEndElement: stack = " + sbmlElements);
       }
     }
-    // check that the stack did not increase before and after an element ?
 
+    // check that the stack did not increase before and after an element?
     if (initializedParsers != null) {
       String elementNamespaceURI = currentNode.getNamespaceURI();
       parser = initializedParsers.get(elementNamespaceURI);
@@ -1210,7 +1211,6 @@ public class SBMLReader {
           if (popElementFromTheStack) {
             sbmlElements.pop();
           }
-
         } else {
 
           logger.debug("event.isEndElement: sbml element found");
