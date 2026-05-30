@@ -658,20 +658,21 @@ public class SBMLReader {
 
     addAnnotationParsers(startElement);
 
-    if (state.currentNode.getLocalPart().equals("sbml")) {
+    String localPart = state.currentNode.getLocalPart();
+    if (localPart.equals("sbml")) {
       initializeSbmlDocument(startElement, state, listener);
     } else if (state.lastElement == null) {
       initializeFreeXmlParsing(state);
-    } else if (state.currentNode.getLocalPart().equals("annotation")) {
+    } else if (localPart.equals("annotation")) {
       handleAnnotationStart(state);
     } else if (state.isInsideAnnotation) {
       state.annotationDeepness++;
-    } else if (state.currentNode.getLocalPart().equals("notes") || state.currentNode.getLocalPart().equals("message")) {
+    } else if (localPart.equals("notes") || localPart.equals("message")) {
       handleNotesOrMessageStart(state);
     }
 
     if (state.isInsideAnnotation && logger.isDebugEnabled()) {
-      logger.debug("startElement: local part = " + state.currentNode.getLocalPart());
+      logger.debug("startElement: local part = " + localPart);
     }
 
     // annotationDeepness = 0 is the annotation element; pass everything inside it to the anyXML parser
@@ -686,7 +687,7 @@ public class SBMLReader {
     if (state.encoding != null) {
       sbmlDocument.putUserObject(SBMLDocumentConstraints.XML_DECLARED_ENCODING, state.encoding);
     }
-    if (state.currentNode.getPrefix() != null && state.currentNode.getPrefix().trim().length() > 0) {
+    if (state.currentNode.getPrefix() != null && !state.currentNode.getPrefix().trim().isEmpty()) {
       sbmlDocument.putUserObject(JSBML.ELEMENT_XML_PREFIX, state.currentNode.getPrefix());
     }
 
@@ -717,13 +718,13 @@ public class SBMLReader {
       state.sbmlElements.push(new Constraint(3, 1));
     }
 
-    if (state.currentNode.getLocalPart().equals("notes") || state.currentNode.getLocalPart().equals("message")
-        || state.currentNode.getLocalPart().equals("annotation")) {
+    String localPart = state.currentNode.getLocalPart();
+    if (localPart.equals("notes") || localPart.equals("message") || localPart.equals("annotation")) {
       initializedParsers.put("", sbmlCoreParser);
       SBase sbase = (SBase) state.sbmlElements.firstElement();
       String sbmlNamespace = JSBML.getNamespaceFrom(sbase.getLevel(), sbase.getVersion());
-      state.currentNode = new QName(sbmlNamespace, state.currentNode.getLocalPart());
-    } else if (state.currentNode.getLocalPart().equals("math")) {
+      state.currentNode = new QName(sbmlNamespace, localPart);
+    } else if (localPart.equals("math")) {
       initializedParsers.put("", new MathMLStaxParser());
       initializedParsers.put(ASTNode.URI_MATHML_DEFINITION, new MathMLStaxParser());
       state.currentNode = new QName(ASTNode.URI_MATHML_DEFINITION, "math");
@@ -765,7 +766,7 @@ public class SBMLReader {
       state.isText = true; // preserve whitespace/formatting inside HTML blocks
     }
 
-    if ((state.parser != null) && !state.sbmlElements.isEmpty() && (state.isText || state.isInsideAnnotation)) {
+    if (state.parser != null && !state.sbmlElements.isEmpty() && state.isText) {
       if (state.isHTML) {
         state.parser = initializedParsers.get(JSBML.URI_XHTML_DEFINITION); // TODO: probably not needed
       } else if (state.isInsideAnnotation) {
@@ -801,14 +802,15 @@ public class SBMLReader {
 
     if (state.currentNode != null) {
       boolean isSBMLelement = isSbmlNamespaceElement(state);
+      String localPart = state.currentNode.getLocalPart();
 
-      if (state.currentNode.getLocalPart().equals("annotation") && isSBMLelement) {
+      if (localPart.equals("annotation") && isSBMLelement) {
         state.isInsideAnnotation = false;
         state.annotationDeepness = -1;
         processAnnotationEnd(state.lastElement);
       } else if (state.isInsideAnnotation) {
         state.annotationDeepness--;
-      } else if ((state.currentNode.getLocalPart().equals("notes") || state.currentNode.getLocalPart().equals("message")) && isSBMLelement) {
+      } else if ((localPart.equals("notes") || localPart.equals("message")) && isSBMLelement) {
         state.isHTML = false;
       }
     }
