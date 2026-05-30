@@ -596,17 +596,6 @@ public class SBMLReader {
   }
 
 
-  /**
-   * Reads an XML document from the given {@link XMLEventReader}. It need to represent a self contain part of
-   * an SBML document. It can be either a math element, a notes element or the whole SBML model. If math or notes are given,
-   * a Rule containing the math or notes will be returned, otherwise an SBMLDocument is returned.
-   *
-   *
-   * @param xmlEventReader
-   * @param listener
-   * @return an {@code Object} representing the given XML.
-   * @throws XMLStreamException
-   */
   /** Mutable state shared across XML event handlers during a single parse. */
   private static final class XmlParseState {
     String encoding = null;
