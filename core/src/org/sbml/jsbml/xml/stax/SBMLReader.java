@@ -19,46 +19,11 @@
  */
 package org.sbml.jsbml.xml.stax;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Stack;
-
-
-import javax.xml.namespace.QName;
-import javax.xml.stream.XMLEventReader;
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.events.Attribute;
-import javax.xml.stream.events.Characters;
-import javax.xml.stream.events.EndElement;
-import javax.xml.stream.events.Namespace;
-import javax.xml.stream.events.StartDocument;
-import javax.xml.stream.events.StartElement;
-import javax.xml.stream.events.XMLEvent;
-
+import com.ctc.wstx.api.WstxInputProperties;
+import com.ctc.wstx.stax.WstxInputFactory;
 import org.apache.log4j.Logger;
-import org.sbml.jsbml.ASTNode;
+import org.sbml.jsbml.*;
 import org.sbml.jsbml.ASTNode.Type;
-import org.sbml.jsbml.AbstractTreeNode;
-import org.sbml.jsbml.Annotation;
-import org.sbml.jsbml.Constraint;
-import org.sbml.jsbml.JSBML;
-import org.sbml.jsbml.MathContainer;
-import org.sbml.jsbml.SBMLDocument;
-import org.sbml.jsbml.SBMLException;
-import org.sbml.jsbml.SBase;
-import org.sbml.jsbml.Species;
 import org.sbml.jsbml.util.SimpleTreeNodeChangeListener;
 import org.sbml.jsbml.util.StringTools;
 import org.sbml.jsbml.util.TreeNodeChangeListener;
@@ -66,16 +31,18 @@ import org.sbml.jsbml.util.TreeNodeWithChangeSupport;
 import org.sbml.jsbml.util.filters.Filter;
 import org.sbml.jsbml.validator.offline.constraints.SBMLDocumentConstraints;
 import org.sbml.jsbml.xml.XMLNode;
-import org.sbml.jsbml.xml.parsers.AbstractReaderWriter;
-import org.sbml.jsbml.xml.parsers.AnnotationReader;
-import org.sbml.jsbml.xml.parsers.MathMLStaxParser;
-import org.sbml.jsbml.xml.parsers.ParserManager;
-import org.sbml.jsbml.xml.parsers.ReadingParser;
-import org.sbml.jsbml.xml.parsers.SBMLCoreParser;
-import org.sbml.jsbml.xml.parsers.XMLNodeReader;
+import org.sbml.jsbml.xml.parsers.*;
 
-import com.ctc.wstx.api.WstxInputProperties;
-import com.ctc.wstx.stax.WstxInputFactory;
+import javax.xml.namespace.QName;
+import javax.xml.stream.XMLEventReader;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.events.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
+import java.util.*;
+import java.util.Map.Entry;
 
 import static java.text.MessageFormat.format;
 
