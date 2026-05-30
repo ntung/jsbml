@@ -72,7 +72,7 @@ public class SBMLReader {
   //    System.setProperty("javax.xml.stream.XMLEventFactory", "com.ctc.wstx.stax.WstxEventFactory");
   //  }
 
-  private static Map<String, Class<? extends AnnotationReader>> annotationParserClasses = new HashMap<String, Class<? extends AnnotationReader>>();
+  private static final Map<String, Class<? extends AnnotationReader>> annotationParserClasses = new HashMap<>();
 
  static {
    
@@ -85,12 +85,12 @@ public class SBMLReader {
  /**
   * Contains all the initialized parsers.
   */
- private Map<String, ReadingParser> initializedParsers = new HashMap<String, ReadingParser>();
+ private Map<String, ReadingParser> initializedParsers = new HashMap<>();
 
  /**
   * Annotation readers applied after the {@code <annotation>} element is fully parsed.
   */
- private List<AnnotationReader> annotationParsers = new ArrayList<AnnotationReader>();
+ private final List<AnnotationReader> annotationParsers = new ArrayList<>();
 
   /**
    * The parent of the mathML we are parsing through the readMathML methods.
@@ -103,12 +103,12 @@ public class SBMLReader {
   /**
    * Initialize a static instance of the core parser.
    */
-  private static SBMLCoreParser sbmlCoreParser = new SBMLCoreParser();
+  private static final SBMLCoreParser sbmlCoreParser = new SBMLCoreParser();
 
   /**
    * A {@link Logger} for this class.
    */
-  private static final transient Logger logger = Logger.getLogger(SBMLReader.class);
+  private static final Logger logger = Logger.getLogger(SBMLReader.class);
 
   /**
    * Creates the ReadingParser instances and stores them in a
@@ -1068,7 +1068,7 @@ public class SBMLReader {
   private void processNamespaces(Iterator<Namespace> nam, QName currentNode,
     Stack<Object> sbmlElements,	ReadingParser parser, boolean hasAttributes)
   {
-    ReadingParser namespaceParser = null;
+    ReadingParser namespaceParser;
 
     while (nam.hasNext()) {
       Namespace namespace = nam.next();
@@ -1120,7 +1120,7 @@ public class SBMLReader {
     Stack<Object> sbmlElements, ReadingParser parser, boolean hasAttributes,
     boolean isInsideAnnotation)
   {
-    ReadingParser attributeParser = null;
+    ReadingParser attributeParser;
 
     while (att.hasNext()) {
 
