@@ -113,22 +113,19 @@ public class SBMLReader {
   /**
    * Creates the ReadingParser instances and stores them in a
    * HashMap.
-   *
-   * @return the map containing the ReadingParser instances.
    */
-  private  Map<String, ReadingParser> initializePackageParsers() {
+  private void initializePackageParsers() {
     Logger logger = Logger.getLogger(SBMLReader.class);
 
     if (logger.isDebugEnabled()) {
       logger.debug("initializePackageParsers called.");
     }
 
-    if ((initializedParsers == null) || (initializedParsers.size() == 0)) {
+    if ((initializedParsers == null) || (initializedParsers.isEmpty())) {
       initializedParsers = ParserManager.getManager().getReadingParsers();
       initializeAnnotationParsers();
     }
 
-    return initializedParsers;
   }
 
   /**
@@ -139,7 +136,6 @@ public class SBMLReader {
    */
   private void addAnnotationParsers(StartElement startElement)
   {
-    @SuppressWarnings("unchecked")
     Iterator<Namespace> namespacesIterator = startElement.getNamespaces();
 
     while (namespacesIterator.hasNext()) {
@@ -163,9 +159,7 @@ public class SBMLReader {
     for (Class<? extends AnnotationReader> annotationReaderClass : annotationParserClasses.values()) {
       try {
         annotationParsers.add(annotationReaderClass.newInstance());
-      } catch (InstantiationException e) {
-        e.printStackTrace();
-      } catch (IllegalAccessException e) {
+      } catch (InstantiationException | IllegalAccessException e) {
         e.printStackTrace();
       }
     }
@@ -306,7 +300,7 @@ public class SBMLReader {
     }
     throw new XMLStreamException(MessageFormat.format(
       "JSBML could not properly read file {0}. Please check if it contains valid SBML. If you think it is valid, please submit a bug report to the bug tracker of JSBML.",
-      (file.getPath() == null) ? "null" : file.getAbsolutePath()));
+      file.getAbsolutePath()));
   }
 
   /**
@@ -378,8 +372,12 @@ public class SBMLReader {
       logger.debug("SBMLReader.readMathML called");
     }
 
+    return getAstNode(mathML, listener);
+  }
+
+  private ASTNode getAstNode(String mathML, TreeNodeChangeListener listener) throws XMLStreamException {
     Object object = readXMLFromString(mathML, listener);
-    if (object != null && object instanceof Constraint) {
+    if (object instanceof Constraint) {
       ASTNode math = ((Constraint) object).getMath();
       if (math != null) {
         cleanTreeNode(math);
@@ -436,15 +434,7 @@ public class SBMLReader {
       logger.debug("SBMLReader.readMathML with parent called");
     }
 
-    Object object = readXMLFromString(mathML, listener);
-    if (object != null && object instanceof Constraint) {
-      ASTNode math = ((Constraint) object).getMath();
-      if (math != null) {
-        cleanTreeNode(math);
-        return math;
-      }
-    }
-    return null;
+    return getAstNode(mathML, listener);
   }
 
   /**
@@ -471,7 +461,7 @@ public class SBMLReader {
       throws XMLStreamException {
     Object object = readXMLFromString(notesXHTML, listener);
 
-    if ((object != null) && (object instanceof Constraint)) {
+    if (object instanceof Constraint) {
       Constraint constraint = ((Constraint) object);
       cleanTreeNode(constraint);
 
@@ -494,7 +484,7 @@ public class SBMLReader {
         return (XMLNode) constraint.getUserObject(org.sbml.jsbml.SBMLReader.UNKNOWN_XML_NODE);
       }
     }
-    else if ((object != null) && (object instanceof XMLNode))
+    else if (object instanceof XMLNode)
     {
       // Should not happen at the moment but could if readXMLFromString returned directly
       // the XMLNode instead of a Constraint object.
@@ -673,8 +663,7 @@ public class SBMLReader {
 
     sbmlDocument.addTreeNodeChangeListener(listener == null ? new SimpleTreeNodeChangeListener() : listener);
 
-    for (@SuppressWarnings("unchecked")
-    Iterator<Attribute> iterator = startElement.getAttributes(); iterator.hasNext();) {
+    for (Iterator<Attribute> iterator = startElement.getAttributes(); iterator.hasNext();) {
       Attribute attr = iterator.next();
       if (attr.getName().toString().equals("level")) {
         state.level = StringTools.parseSBMLInt(attr.getValue());
@@ -935,9 +924,7 @@ public class SBMLReader {
 
         if (parser != null) {
 
-          @SuppressWarnings("unchecked")
           Iterator<Namespace> nam = startElement.getNamespaces();
-          @SuppressWarnings("unchecked")
           Iterator<Attribute> att = startElement.getAttributes();
           boolean hasAttributes = att.hasNext();
           boolean hasNamespace = nam.hasNext();
@@ -980,7 +967,7 @@ public class SBMLReader {
                         astNode.setType(Type.RATIONAL);
                       }
 
-                      if (object != null && object instanceof ASTNode) {
+                      if (object instanceof ASTNode) {
                         ASTNode parent = (ASTNode) object;
 
                         // we need to remove the last child as the hierarchy of children are stored in the ASTNode2 and not directly in the ASTNode
@@ -1011,7 +998,7 @@ public class SBMLReader {
                         astNode.setType(Type.FUNCTION_RATE_OF);
                       }
 
-                      if (object != null && object instanceof ASTNode) {
+                      if (object instanceof ASTNode) {
                         ASTNode parent = (ASTNode) object;
 
                         // we need to remove the last child as the hierarchy of children are stored in the ASTNode2 and not directly in the ASTNode
@@ -1224,9 +1211,6 @@ public class SBMLReader {
             sbmlElements.pop();
           }
 
-          // System.out.println("SBMLReader: event.isEndElement: new stack.size = "
-          // + SBMLElements.size());
-
         } else {
 
           logger.debug("event.isEndElement: sbml element found");
@@ -1237,7 +1221,7 @@ public class SBMLReader {
             SBMLDocument sbmlDocument = (SBMLDocument) sbmlElements.peek();
 
             Iterator<Entry<String, ReadingParser>> iterator = initializedParsers.entrySet().iterator();
-            List<String> readingParserClasses = new ArrayList<String>();
+            List<String> readingParserClasses = new ArrayList<>();
 
             // Calling endDocument for all parsers
             while (iterator.hasNext()) {
